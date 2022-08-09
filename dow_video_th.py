@@ -419,23 +419,10 @@ class DEMO:
                 except:
                     video_url = response['data']['dash']['video'][0]['baseUrl']
                     audio_url = response['data']['dash']['audio'][0]['baseUrl']
-            out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
-            fileno = out_temp.fileno()
             text = StringVar()
             label = Label(self._window, textvariable=text, font=('微软雅黑', 8))
             label.pack(side=TOP, anchor=NW, pady=3)
-            is_cmd = self._progress(video_url, audio_url, video_title, data[0], text, folder_name)
-            if is_cmd:
-                cmd = f'ffmpeg -y -i ./{self._folder_temp}/{data[0]}.mp4 -i ./{self._folder_temp}/{data[0]}.mp3' \
-                      f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
-                proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
-                text.set('文件合并中，请勿关闭')
-                proc.wait()
-                out_temp.seek(0)
-                for i in out_temp.readlines():
-                    print(i.decode('utf-8').replace('\n', ''))
-                if proc.poll() == 0:
-                    self._delete_file(data[0])
+            self._progress(video_url, audio_url, video_title, data[0], text, folder_name)
             label.destroy()
             self._wait_dow_list.remove(video_title)
             self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
@@ -472,7 +459,18 @@ class DEMO:
                         size += len(v)
                     text.set(
                         '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
-            return True
+            out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
+            fileno = out_temp.fileno()
+            cmd = f'ffmpeg -y -i ./{self._folder_temp}/{cid}.mp4 -i ./{self._folder_temp}/{cid}.mp3' \
+                  f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
+            proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
+            text.set('文件合并中，请勿关闭')
+            proc.wait()
+            out_temp.seek(0)
+            for i in out_temp.readlines():
+                print(i.decode('utf-8').replace('\n', ''))
+            if proc.poll() == 0:
+                self._delete_file(cid)
         else:
             with open(f"./{folder_name}/{video_title}.mp4", 'wb') as vf:
                 content_size = int(video_response.headers['content-length'])
@@ -481,7 +479,6 @@ class DEMO:
                     size += len(v)
                     text.set(
                         '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
-            return False
 
     def start(self):
         """梦开始的地方"""
