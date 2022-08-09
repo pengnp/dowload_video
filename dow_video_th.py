@@ -393,8 +393,12 @@ class DEMO:
                     video_url = response['result']['dash']['video'][0]['backupUrl'][0]
                     audio_url = response['result']['dash']['audio'][0]['backupUrl'][0]
                 except:
-                    video_url = response['result']['dash']['video'][0]['base_url']
-                    audio_url = response['result']['dash']['audio'][0]['base_url']
+                    try:
+                        video_url = response['result']['dash']['video'][0]['base_url']
+                        audio_url = response['result']['dash']['audio'][0]['base_url']
+                    except:
+                        video_url = response['result']['durl'][0]['backup_url'][0]
+                        audio_url = None
             else:
                 url = 'https://api.bilibili.com/x/player/playurl'  # 普通
                 param = {
@@ -420,27 +424,28 @@ class DEMO:
             text = StringVar()
             label = Label(self._window, textvariable=text, font=('微软雅黑', 8))
             label.pack(side=TOP, anchor=NW, pady=3)
-            self._progress(video_url, audio_url, video_title, data[0], text)
-            cmd = f'ffmpeg -y -i ./{self._folder_temp}/{data[0]}.mp4 -i ./{self._folder_temp}/{data[0]}.mp3' \
-                  f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
-            proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
-            text.set('文件合并中，请勿关闭')
-            proc.wait()
-            out_temp.seek(0)
-            for i in out_temp.readlines():
-                print(i.decode('utf-8').replace('\n', ''))
-            if proc.poll() == 0:
-                self._delete_file(data[0])
-                label.destroy()
-                self._wait_dow_list.remove(video_title)
-                self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
+            is_cmd = self._progress(video_url, audio_url, video_title, data[0], text, folder_name)
+            if is_cmd:
+                cmd = f'ffmpeg -y -i ./{self._folder_temp}/{data[0]}.mp4 -i ./{self._folder_temp}/{data[0]}.mp3' \
+                      f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
+                proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
+                text.set('文件合并中，请勿关闭')
+                proc.wait()
+                out_temp.seek(0)
+                for i in out_temp.readlines():
+                    print(i.decode('utf-8').replace('\n', ''))
+                if proc.poll() == 0:
+                    self._delete_file(data[0])
+            label.destroy()
+            self._wait_dow_list.remove(video_title)
+            self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
         except:
             message = traceback.format_exc().replace('\n', '\n') + '\n请尝试输入新的大会员cookie，如不能解决请联系作者'
             self._excpe_dow = False
             self._tips(data, message)
         self._semaphore.release()
 
-    def _progress(self, video_url, audio_url, video_title, cid, text):
+    def _progress(self, video_url, audio_url, video_title, cid, text, folder_name):
         """
         下载视频，并展示下载进度条
         :param video_url: 视频地址
@@ -448,22 +453,35 @@ class DEMO:
         :param video_title: 视频的标题
         :param cid: 视频的cid
         :param text: Label组件的StringVar()
+        :param folder_name: 保存番剧的文件夹名称
         """
-        with open(f"./{self._folder_temp}/{cid}.mp4", 'wb') as vf, open(f"./{self._folder_temp}/{cid}.mp3", 'wb') as af:
-            size = 0  # 初始化已下载大小
-            chunk_size = 30720  # 每次下载的数据大小
-            video_response = requests.get(video_url, headers=self._header, stream=True)
+        size = 0  # 初始化已下载大小
+        chunk_size = 30720  # 每次下载的数据大小
+        video_response = requests.get(video_url, headers=self._header, stream=True)
+        if audio_url:
             audio_response = requests.get(audio_url, headers=self._header, stream=True)
-            content_size = int(video_response.headers['content-length']) + int(audio_response.headers['content-length'])
-            for v, a in zip_longest(video_response.iter_content(chunk_size=chunk_size),
-                                    audio_response.iter_content(chunk_size=chunk_size)):
-                vf.write(v)
-                if a is not None:
-                    af.write(a)
-                    size += len(v) + len(a)
-                else:
+            with open(f"./{self._folder_temp}/{cid}.mp4", 'wb') as vf, open(f"./{self._folder_temp}/{cid}.mp3", 'wb') as af:
+                content_size = int(video_response.headers['content-length']) + int(audio_response.headers['content-length'])
+                for v, a in zip_longest(video_response.iter_content(chunk_size=chunk_size),
+                                        audio_response.iter_content(chunk_size=chunk_size)):
+                    vf.write(v)
+                    if a is not None:
+                        af.write(a)
+                        size += len(v) + len(a)
+                    else:
+                        size += len(v)
+                    text.set(
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
+            return True
+        else:
+            with open(f"./{folder_name}/{video_title}.mp4", 'wb') as vf:
+                content_size = int(video_response.headers['content-length'])
+                for v in video_response.iter_content(chunk_size=chunk_size):
+                    vf.write(v)
                     size += len(v)
-                text.set('[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
+                    text.set(
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
+            return False
 
     def start(self):
         """梦开始的地方"""
