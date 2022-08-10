@@ -440,7 +440,7 @@ class DEMO:
         :param video_title: 视频的标题
         :param cid: 视频的cid
         :param text: Label组件的StringVar()
-        :param folder_name: 保存番视频的文件夹名称
+        :param folder_name: 保存视频的文件夹名称
         """
         size = 0  # 初始化已下载大小
         chunk_size = 30720  # 每次下载的数据大小
