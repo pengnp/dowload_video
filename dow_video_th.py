@@ -70,21 +70,21 @@ class DEMO:
         entry = Entry(operation_box, textvariable=var, width=29)
         entry.pack(side=LEFT)
         self._menu(entry)
-        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._show_data(frame, var, canvas)).pack(
+        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._show_data(var)).pack(
             side=LEFT)
 
         show_box = LabelFrame(self._window, padx=5, pady=4)
         show_box.pack(fill=X, side=TOP)
-        canvas = Canvas(show_box, borderwidth=0)
+        self._canvas = Canvas(show_box, borderwidth=0)
 
-        frame = Frame(canvas)
-        frame.pack(side=TOP)
-        vsb = Scrollbar(show_box, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vsb.set, height=150, width=270)
+        self._frame = Frame(self._canvas)
+        self._frame.pack(side=TOP)
+        vsb = Scrollbar(show_box, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=vsb.set, height=150, width=270)
         vsb.pack(side=RIGHT, fill=Y)
-        canvas.pack(side=LEFT, fill="both", expand=True)
-        canvas.create_window((4, 4), window=frame, anchor="nw", tags="frame")
-        frame.bind("<Configure>", lambda event, canvas1=canvas: canvas.configure(scrollregion=canvas.bbox("all")))
+        self._canvas.pack(side=LEFT, fill="both", expand=True)
+        self._canvas.create_window((4, 4), window=self._frame, anchor="nw", tags="frame")
+        self._frame.bind("<Configure>", lambda event, canvas1=self._canvas: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
 
         Button(self._window, textvariable=self._dow_but_text, font=('微软雅黑', 8), width=300,
                command=lambda: self._disabled_or_select(True)).pack(side=TOP)
@@ -105,11 +105,11 @@ class DEMO:
             if event.delta > 0:
                 if self._schedule > 0:
                     self._schedule -= self._accumulate
-                    canvas.yview_moveto(self._schedule)
+                    self._canvas.yview_moveto(self._schedule)
             else:
                 if self._schedule < 1:
                     self._schedule += self._accumulate
-                    canvas.yview_moveto(self._schedule)
+                    self._canvas.yview_moveto(self._schedule)
 
         self._window.bind('<MouseWheel>', define)
 
@@ -206,16 +206,15 @@ class DEMO:
         self._check_buts.clear()
         self._video_data.clear()
         self._dow_list.clear()
+        self._schedule = 0  # canvas 滚动进度
+        self._canvas.yview_moveto(0)  # 滚动条复位
 
-    def _show_data(self, frame, var, canvas):
+    def _show_data(self, var):
         """
         将获取到的视频信息展示到画布
-        :param frame: frame组件
         :param var: 搜索框的StringVar()
-        :param canvas: 画布
         """
-        self._schedule = 0  # canvas 滚动进度
-        canvas.yview_moveto(0)  # 滚动条复位
+        self._clear()
         self._address_input = var.get()
         if self._address_input:
             if 'BV' in self._address_input:
@@ -224,10 +223,9 @@ class DEMO:
                 self._video_type = False
             else:
                 self._video_type = True
-            self._clear()
             self._get_video_info()
             for title in self._video_data:
-                but = Checkbutton(frame, text=title, command=lambda tit=title: self._get_dow_list(tit))
+                but = Checkbutton(self._frame, text=title, command=lambda tit=title: self._get_dow_list(tit))
                 but.pack(anchor='w')
                 self._check_buts[title] = [but, False]
             self._disabled_or_select(False)
@@ -340,7 +338,7 @@ class DEMO:
                 self._wait_dow_list.append(title)
                 threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title],)))
         for th in threading_list:
-            th.setDaemon(True)
+            th.daemon = True
             th.start()
         self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
 
