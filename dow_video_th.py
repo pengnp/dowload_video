@@ -41,17 +41,18 @@ class DEMO:
         self._dow_but_text = StringVar(value='点我下载(0个正在下载)')
         self._tips_flag = True  # 提示弹窗标识，判断提示窗是否存在
         self._excpe_dow = True  # 异常时的下载标识
-        self._video_type = True  # 区分类型  True番剧  False普通视频
+        self._video_type = ''  # 区分类型  FAN番剧  BV普通视频  UP阿婆主的视频列表
         self._schedule = 0  # 累积滚动值
         self._accumulate = 0  # 每次鼠标滚动时需要移动的数值
         self._vsb_location = 0  # 滚动条位置
+        self._pn = 0
 
     def _ui(self):
         """界面UI"""
         self._window.resizable(False, False)
         self._window.title('下番工具')
-        width = 300
-        height = 300
+        width = 400
+        height = 400
         scree_width = (self._window.winfo_screenwidth() - width) // 2
         scree_height = (self._window.winfo_screenheight() - height) // 2
         self._window.geometry(f'{width}x{height}+{scree_width}+{scree_height}')
@@ -67,10 +68,10 @@ class DEMO:
         operation_box.pack(side=TOP)
         Label(operation_box, text='地址：').pack(side=LEFT)
         var = StringVar()
-        entry = Entry(operation_box, textvariable=var, width=29)
+        entry = Entry(operation_box, textvariable=var, width=42)
         entry.pack(side=LEFT)
         self._menu(entry)
-        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._show_data(var)).pack(
+        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._set_video_type(var)).pack(
             side=LEFT)
 
         show_box = LabelFrame(self._window, padx=5, pady=4)
@@ -80,7 +81,7 @@ class DEMO:
         self._frame = Frame(self._canvas)
         self._frame.pack(side=TOP)
         vsb = Scrollbar(show_box, orient="vertical", command=self._canvas.yview)
-        self._canvas.configure(yscrollcommand=vsb.set, height=150, width=270)
+        self._canvas.configure(yscrollcommand=vsb.set, height=250, width=270)
         vsb.pack(side=RIGHT, fill=Y)
         self._canvas.pack(side=LEFT, fill="both", expand=True)
         self._canvas.create_window((4, 4), window=self._frame, anchor="nw", tags="frame")
@@ -95,6 +96,8 @@ class DEMO:
             :param event: 事件
             """
             self._schedule = vsb.get()[0]
+            print(f'当前位置：{self._schedule}')
+
         vsb.bind("<ButtonRelease>", get_loc)
 
         def define(event):
@@ -102,15 +105,20 @@ class DEMO:
             canvas滚动
             :param event: 事件
             """
-            if event.delta > 0:
+            if event.delta > 0:  # 向上滚动
                 if self._schedule > 0:
                     self._schedule -= self._accumulate
                     self._canvas.yview_moveto(self._schedule)
-            else:
+            else:  # 向下滚动
                 if self._schedule < 1:
                     self._schedule += self._accumulate
                     self._canvas.yview_moveto(self._schedule)
+                if self._schedule >= 1 and self._video_type == 'UP':
+                    self._pn += 1
+                    self._get_video_info()
+                    self._schedule = self._pn * 10 / len(self._video_data) - self._accumulate * 5
 
+            print(self._schedule)
         self._window.bind('<MouseWheel>', define)
 
         self._window.mainloop()
@@ -208,8 +216,9 @@ class DEMO:
         self._dow_list.clear()
         self._schedule = 0  # canvas 滚动进度
         self._canvas.yview_moveto(0)  # 滚动条复位
+        self._pn = 0
 
-    def _show_data(self, var):
+    def _set_video_type(self, var):
         """
         将获取到的视频信息展示到画布
         :param var: 搜索框的StringVar()
@@ -217,19 +226,26 @@ class DEMO:
         self._clear()
         self._address_input = var.get()
         if self._address_input:
-            if 'BV' in self._address_input:
-                if 'http' not in self._address_input:
+            if 'https' not in self._address_input:
+                if 'BV' in self._address_input:
                     self._address_input = f'https://www.bilibili.com/video/{self._address_input}'
-                self._video_type = False
+                    self._video_type = 'BV'
+                else:
+                    self._video_type = 'UP'
             else:
-                self._video_type = True
+                if 'BV' in self._address_input:
+                    self._video_type = 'BV'
+                else:
+                    self._video_type = 'FAN'
             self._get_video_info()
-            for title in self._video_data:
-                but = Checkbutton(self._frame, text=title, command=lambda tit=title: self._get_dow_list(tit))
-                but.pack(anchor='w')
-                self._check_buts[title] = [but, False]
-            self._disabled_or_select(False)
         var.set('')
+
+    def _show_data(self):
+        for title in list(self._video_data.keys())[self._pn * 25:]:
+            but = Checkbutton(self._frame, text=title, justify=LEFT, font=('微软雅黑', 8), command=lambda tit=title: self._get_dow_list(tit))
+            but.pack(anchor='w')
+            self._check_buts[title] = [but, False]
+        self._disabled_or_select(False)
 
     def _get_dow_list(self, title):
         """勾选的视频存入列表，取消勾选的视频移除列表"""
@@ -301,25 +317,42 @@ class DEMO:
     def _get_video_info(self):
         """获取视频信息"""
         try:
-            response = requests.get(self._address_input, headers=self._header).text
-            video_info = json.loads(re.findall(r"<script>window\.__INITIAL_STATE__=(.*?)</script>", response)[0][0:-122])
-            if self._video_type:
-                self._folder_name = video_info['mediaInfo']['title'].replace(' ', '').replace('/', '-')
-                self._create_folder(False)
-                for info in video_info['epList']:
-                    if info['longTitle'] != '':
-                        video_title = f"{info['titleFormat']}-{info['longTitle']}"
-                    else:
-                        video_title = f"{info['titleFormat']}"
-                    video_title = video_title.replace('.', '_').replace('/', '-').replace(' ', '_')[:25]
-                    self._video_data[video_title] = [info['cid'], info['bvid'], video_title, info['aid'], info['id'],
-                                                     self._folder_name, self._video_type]
+            if self._video_type in ['FAN', 'BV']:
+                response = requests.get(self._address_input, headers=self._header).text
+                video_info = json.loads(re.findall(r"<script>window\.__INITIAL_STATE__=(.*?)</script>", response)[0][0:-122])
+                if self._video_type == 'FAN':
+                    self._folder_name = video_info['mediaInfo']['title'].replace(' ', '').replace('/', '-')
+                    for info in video_info['epList']:
+                        if info['longTitle'] != '':
+                            video_title = f"{info['titleFormat']}-{info['longTitle']}"
+                        else:
+                            video_title = f"{info['titleFormat']}"
+                        video_title = video_title.replace('.', '_').replace('/', '-').replace(' ', '_')[:25]
+                        self._video_data[video_title] = [info['cid'], info['bvid'], video_title, info['aid'], info['id'],
+                                                         self._folder_name, self._video_type]
+                elif self._video_type == 'BV':
+                    info = video_info['videoData']
+                    self._folder_name = info['title'].replace(' ', '').replace('/', '-').replace('.', '_')[:25]
+                    self._video_data[self._folder_name] = [info['cid'], info['bvid'], self._folder_name, self._video_type]
             else:
-                info = video_info['videoData']
-                self._folder_name = info['title'].replace(' ', '').replace('/', '-').replace('.', '_')[:25]
-                self._create_folder(False)
-                self._video_data[self._folder_name] = [info['cid'], info['bvid'], self._folder_name, self._video_type]
+                response = requests.get(url='https://api.bilibili.com/x/space/arc/search', headers=self._header,
+                                        params={
+                                            'mid': self._address_input,
+                                            'pn': self._pn + 1,
+                                            'ps': 25,
+                                            'index': 1,
+                                            'jsonp': 'jsonp',
+                                        }).json()['data']['list']['vlist']
+                if response:
+                    self._folder_name = response[0]['author'].replace(' ', '').replace('/', '-').replace('.', '_')
+                    for vlist in response:
+                        video_title = vlist['title'].replace(' ', '').replace('/', '-').replace('.', '_')
+                        cid = requests.get(url=f"https://api.bilibili.com/x/player/pagelist?aid={vlist['aid']}&jsonp=json",
+                                           headers=self._header).json()['data'][0]['cid']
+                        self._video_data[video_title] = [cid, vlist['bvid'], video_title, self._folder_name, self._video_type]
+            self._create_folder(False)
             self._accumulate = 1 / len(self._video_data)  # 计算每次鼠标滚动时需要移动的距离
+            self._show_data()
         except:
             messagebox.showerror(message=traceback.format_exc().replace('\n', '\n') + '\n未查到视频信息，请检查输入的url是否正确')
 
@@ -372,8 +405,8 @@ class DEMO:
         session = ''.join(random.sample(string.ascii_letters + string.digits, 32))
         video_title = data[2]
         try:
-            if data[-1]:
-                folder_name = data[5]
+            if data[-1] == 'FAN':
+                folder_name = data[-2]
                 param = {
                     'avid': data[3],
                     'bvid': data[1],
@@ -409,7 +442,10 @@ class DEMO:
                     'fnval': 976,
                     'session': session
                 }
-                folder_name = video_title
+                if data[-1] == 'BV':
+                    folder_name = video_title
+                else:
+                    folder_name = data[-2]
                 response = requests.get(url, headers=self._header, params=param).json()
                 try:
                     video_url = response['data']['dash']['video'][0]['backupUrl'][0]
@@ -456,7 +492,7 @@ class DEMO:
                     else:
                         size += len(v)
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:25], size=float(size / content_size * 100)))
             out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
             fileno = out_temp.fileno()
             cmd = f'ffmpeg -y -i ./{self._folder_temp}/{cid}.mp4 -i ./{self._folder_temp}/{cid}.mp3' \
@@ -476,7 +512,7 @@ class DEMO:
                     vf.write(v)
                     size += len(v)
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:14], size=float(size / content_size * 100)))
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:25], size=float(size / content_size * 100)))
 
     def start(self):
         """梦开始的地方"""
