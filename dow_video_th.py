@@ -241,6 +241,9 @@ class DEMO:
         var.set('')
 
     def _show_data(self):
+        """
+        展示视频信息
+        """
         for title in list(self._video_data.keys())[self._pn * 25:]:
             but = Checkbutton(self._frame, text=title, justify=LEFT, font=('微软雅黑', 8), command=lambda tit=title: self._get_dow_list(tit))
             but.pack(anchor='w')
@@ -485,12 +488,16 @@ class DEMO:
                 content_size = int(video_response.headers['content-length']) + int(audio_response.headers['content-length'])
                 for v, a in zip_longest(video_response.iter_content(chunk_size=chunk_size),
                                         audio_response.iter_content(chunk_size=chunk_size)):
-                    vf.write(v)
-                    if a is not None:
-                        af.write(a)
-                        size += len(v) + len(a)
-                    else:
+                    if v:
+                        vf.write(v)
                         size += len(v)
+                    else:
+                        pass
+                    if a:
+                        af.write(a)
+                        size += len(a)
+                    else:
+                        pass
                     text.set(
                         '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:25], size=float(size / content_size * 100)))
             out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
