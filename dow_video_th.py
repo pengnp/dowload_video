@@ -116,7 +116,7 @@ class DEMO:
                 if self._schedule >= 1 and self._video_type == 'UP':
                     self._pn += 1
                     self._get_video_info()
-                    self._schedule = self._pn * 10 / len(self._video_data) - self._accumulate * 5
+                    self._schedule = self._pn * 25 / len(self._video_data) - self._accumulate * 10
 
             print(self._schedule)
         self._window.bind('<MouseWheel>', define)
