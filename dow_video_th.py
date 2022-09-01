@@ -50,7 +50,7 @@ class DEMO:
     def _ui(self):
         """界面UI"""
         self._window.resizable(False, False)
-        self._window.title('下番工具')
+        self._window.title('小工具')
         width = 400
         height = 400
         scree_width = (self._window.winfo_screenwidth() - width) // 2
@@ -327,12 +327,12 @@ class DEMO:
                             video_title = f"{info['titleFormat']}-{info['longTitle']}"
                         else:
                             video_title = f"{info['titleFormat']}"
-                        video_title = video_title.replace('.', '_').replace('/', '-').replace(' ', '_')[:25]
+                        video_title = video_title.replace('.', '_').replace('/', '-').replace(' ', '_')
                         self._video_data[video_title] = [info['cid'], info['bvid'], video_title, info['aid'], info['id'],
                                                          self._folder_name, self._video_type]
                 elif self._video_type == 'BV':
                     info = video_info['videoData']
-                    self._folder_name = info['title'].replace(' ', '').replace('/', '-').replace('.', '_')[:25]
+                    self._folder_name = info['title'].replace(' ', '').replace('/', '-').replace('.', '_')
                     self._video_data[self._folder_name] = [info['cid'], info['bvid'], self._folder_name, self._video_type]
             else:
                 response = requests.get(url='https://api.bilibili.com/x/space/arc/search', headers=self._header,
