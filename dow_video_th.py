@@ -499,7 +499,7 @@ class DEMO:
                     else:
                         pass
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:25], size=float(size / content_size * 100)))
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
             out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
             fileno = out_temp.fileno()
             cmd = f'ffmpeg -y -i ./{self._folder_temp}/{cid}.mp4 -i ./{self._folder_temp}/{cid}.mp3' \
@@ -519,7 +519,7 @@ class DEMO:
                     vf.write(v)
                     size += len(v)
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:25], size=float(size / content_size * 100)))
+                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
 
     def start(self):
         """梦开始的地方"""
