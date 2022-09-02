@@ -71,7 +71,7 @@ class DEMO:
         entry = Entry(operation_box, textvariable=var, width=42)
         entry.pack(side=LEFT)
         self._menu(entry)
-        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._set_video_type(var)).pack(
+        Button(operation_box, text='点我搜索', font=('微软雅黑', 8), command=lambda: self._thread(function=self._set_video_type, args=(var,))).pack(
             side=LEFT)
 
         show_box = LabelFrame(self._window, padx=5, pady=4)
@@ -116,8 +116,6 @@ class DEMO:
                 if self._schedule >= 1 and self._video_type == 'UP':
                     self._pn += 1
                     self._get_video_info()
-                    self._schedule = self._pn * 25 / len(self._video_data) - self._accumulate * 10
-
             print(self._schedule)
         self._window.bind('<MouseWheel>', define)
 
@@ -163,7 +161,7 @@ class DEMO:
             self._header['cookie'] = content
             self._save_cookie(content)
             if data:
-                self._thread(data)
+                self._thread(function=self._download_video, args=(data,))
         else:
             pass
 
@@ -204,19 +202,19 @@ class DEMO:
                 if self._excpe_dow:  # 如果用户输入了cookie，且有效，则excpe_dow变为True
                     break
                 time.sleep(3)
-            self._thread(data)
+            self._thread(function=self._download_video, args=(data,))
 
     def _clear(self):
         """清除视频信息及按钮信息"""
-        if self._check_buts:
+        if self._video_data:
             for but in self._check_buts.values():
-                but[0].destroy()
-        self._check_buts.clear()
-        self._video_data.clear()
-        self._dow_list.clear()
-        self._schedule = 0  # canvas 滚动进度
-        self._canvas.yview_moveto(0)  # 滚动条复位
-        self._pn = 0
+                but.destroy()
+            self._check_buts.clear()
+            self._video_data.clear()
+            self._dow_list.clear()
+            self._schedule = 0  # canvas 滚动进度
+            self._canvas.yview_moveto(0)  # 滚动条复位
+            self._pn = 0
 
     def _set_video_type(self, var):
         """
@@ -247,7 +245,7 @@ class DEMO:
         for title in list(self._video_data.keys())[self._pn * 25:]:
             but = Checkbutton(self._frame, text=title, justify=LEFT, font=('微软雅黑', 8), command=lambda tit=title: self._get_dow_list(tit))
             but.pack(anchor='w')
-            self._check_buts[title] = [but, False]
+            self._check_buts[title] = but
         self._disabled_or_select(False)
 
     def _get_dow_list(self, title):
@@ -267,19 +265,18 @@ class DEMO:
         if dis_flag:
             if self._check_buts:
                 if self._dow_list:
-                    self._thread()
+                    self._thread(function=None)
                     for title in self._dow_list:
-                        self._check_buts[title][1] = True
-                        self._check_buts[title][0].config(state=DISABLED)
+                        self._check_buts[title].config(state=DISABLED)
                     self._dow_list.clear()
                 else:  # 全选操作
                     self._dow_list = list(self._video_data.keys() ^ set(self._already_list[self._folder_name]))
                     for dow in self._dow_list:
-                        self._check_buts[dow][0].select()
+                        self._check_buts[dow].select()
         else:
             if self._already_list[self._folder_name]:
                 for title in set(self._already_list[self._folder_name]) & self._check_buts.keys():
-                    self._check_buts[title][0].config(state=DISABLED)
+                    self._check_buts[title].config(state=DISABLED)
 
     def _create_folder(self, c_user_temp=True, c_vname_already=False):
         """
@@ -317,6 +314,9 @@ class DEMO:
         os.remove(f'./{self._folder_temp}/{cid}.mp3')
         os.remove(f'./{self._folder_temp}/{cid}.mp4')
 
+    def _format_title(self, title):
+        return title.replace(' ', '').replace('/', '-').replace('.', '_').replace('|', '')
+
     def _get_video_info(self):
         """获取视频信息"""
         try:
@@ -324,18 +324,18 @@ class DEMO:
                 response = requests.get(self._address_input, headers=self._header).text
                 video_info = json.loads(re.findall(r"<script>window\.__INITIAL_STATE__=(.*?)</script>", response)[0][0:-122])
                 if self._video_type == 'FAN':
-                    self._folder_name = video_info['mediaInfo']['title'].replace(' ', '').replace('/', '-')
+                    self._folder_name = self._format_title(video_info['mediaInfo']['title'])
                     for info in video_info['epList']:
                         if info['longTitle'] != '':
                             video_title = f"{info['titleFormat']}-{info['longTitle']}"
                         else:
                             video_title = f"{info['titleFormat']}"
-                        video_title = video_title.replace('.', '_').replace('/', '-').replace(' ', '_')
+                        video_title = self._format_title(video_title)
                         self._video_data[video_title] = [info['cid'], info['bvid'], video_title, info['aid'], info['id'],
                                                          self._folder_name, self._video_type]
                 elif self._video_type == 'BV':
                     info = video_info['videoData']
-                    self._folder_name = info['title'].replace(' ', '').replace('/', '-').replace('.', '_')
+                    self._folder_name = self._format_title(info['title'])
                     self._video_data[self._folder_name] = [info['cid'], info['bvid'], self._folder_name, self._video_type]
             else:
                 response = requests.get(url='https://api.bilibili.com/x/space/arc/search', headers=self._header,
@@ -347,26 +347,28 @@ class DEMO:
                                             'jsonp': 'jsonp',
                                         }).json()['data']['list']['vlist']
                 if response:
-                    self._folder_name = response[0]['author'].replace(' ', '').replace('/', '-').replace('.', '_')
+                    self._folder_name = response[0]['author']
                     for vlist in response:
-                        video_title = vlist['title'].replace(' ', '').replace('/', '-').replace('.', '_')
+                        video_title = self._format_title(vlist['title'])
                         cid = requests.get(url=f"https://api.bilibili.com/x/player/pagelist?aid={vlist['aid']}&jsonp=json",
                                            headers=self._header).json()['data'][0]['cid']
                         self._video_data[video_title] = [cid, vlist['bvid'], video_title, self._folder_name, self._video_type]
             self._create_folder(False)
             self._accumulate = 1 / len(self._video_data)  # 计算每次鼠标滚动时需要移动的距离
+            if self._pn > 0:
+                self._schedule = self._pn * 25 / len(self._video_data) - self._accumulate * 10
             self._show_data()
         except:
             messagebox.showerror(message=traceback.format_exc().replace('\n', '\n') + '\n未查到视频信息，请检查输入的url是否正确')
 
-    def _thread(self, data=None):
+    def _thread(self, **kwargs):
         """
         创建线程，且提示需要下载的视频数量
         :param data: 视频信息
         """
         threading_list = []
-        if data:
-            threading_list.append(threading.Thread(target=self._download_video, args=(data,)))
+        if kwargs['function']:
+            threading_list.append(threading.Thread(target=kwargs['function'], args=kwargs['args']))
         else:
             self._create_folder(False, True)
             for title in self._dow_list:
