@@ -113,7 +113,7 @@ class DEMO:
                 if self._schedule < 1:
                     self._schedule += self._accumulate
                     self._canvas.yview_moveto(self._schedule)
-                if self._schedule >= 1 and self._video_type == 'UP':
+                if self._schedule > 1 and self._video_type == 'UP':
                     self._pn += 1
                     self._get_video_info()
             print(self._schedule)
@@ -357,6 +357,8 @@ class DEMO:
             self._accumulate = 1 / len(self._video_data)  # 计算每次鼠标滚动时需要移动的距离
             if self._pn > 0:
                 self._schedule = self._pn * 25 / len(self._video_data) - self._accumulate * 10
+                if self._schedule > 1:
+                    self._schedule = 1
             self._show_data()
         except:
             messagebox.showerror(message=traceback.format_exc().replace('\n', '\n') + '\n未查到视频信息，请检查输入的url是否正确')
