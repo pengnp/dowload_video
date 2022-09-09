@@ -217,7 +217,7 @@ class DEMO:
 
     def _set_video_type(self, var):
         """
-        将获取到的视频信息展示到画布
+        获取视频的类型
         :param var: 搜索框的StringVar()
         """
         self._clear()
