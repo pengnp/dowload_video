@@ -1,5 +1,5 @@
 @echo off
-call activate D:\Anaconda\envs\test_rqsdk_39
+call activate D:\Anaconda\envs\dabao
 pyinstaller -F -w -i icon\2333.ico dow_video_th.py
 rd __pycache__ /s /q
 rd build /s /q
