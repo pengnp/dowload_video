@@ -1,7 +1,6 @@
 import string
 import time
 from itertools import zip_longest
-from pprint import pprint
 from tkinter import *
 import requests
 import json
@@ -45,6 +44,7 @@ class DEMO:
         self._accumulate = 0  # 每次鼠标滚动时需要移动的数值
         self._vsb_location = 0  # 滚动条位置
         self._pn = 0
+        self._merge = True
 
     def _ui(self):
         """界面UI"""
@@ -62,6 +62,20 @@ class DEMO:
                 break
         except:
             pass
+
+        menubar = Menu(self._window, background='grey')
+        filemenu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label='设置', menu=filemenu)
+        choice = IntVar()
+        choice.set(1)
+        filemenu.add_radiobutton(label='视频合成（是）', variable=choice, value=1, command=lambda: merge_videos(1))
+        filemenu.add_radiobutton(label='视频合成（否）', variable=choice, value=0, command=lambda: merge_videos(0))
+        self._window.config(menu=menubar)
+
+        def merge_videos(value):
+            self._merge = value
+            choice.set(value)
+            print(self._merge)
 
         operation_box = Frame(self._window)
         operation_box.pack(side=TOP)
@@ -371,9 +385,11 @@ class DEMO:
         if kwargs['function']:
             threading_list.append(threading.Thread(target=kwargs['function'], args=kwargs['args']))
         else:
-            self._create_folder(False, True)
+            if self._merge:
+                self._create_folder(False, True)
             for title in self._dow_list:
-                self._already_list[self._folder_name].append(title)
+                if self._merge:
+                    self._already_list[self._folder_name].append(title)
                 self._wait_dow_list.append(title)
                 threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title],)))
         for th in threading_list:
@@ -503,24 +519,27 @@ class DEMO:
                         pass
                     text.set(
                         '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
-            try:
-                text.set('ffmpeg合并中，请勿关闭')
-                out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
-                fileno = out_temp.fileno()
-                cmd = fr'ffmpeg\bin\ffmpeg.exe -y -i ./{self._folder_temp}/{cid}.mp4 -i ./{self._folder_temp}/{cid}.mp3' \
-                      f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
-                proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
-                proc.wait()
-                out_temp.seek(0)
-                for i in out_temp.readlines():
-                    print(i.decode('utf-8').replace('\n', ''))
-            except:
-                text.set('moviepy合并中，此合并方式比较耗时，请耐心等待')
-                video = VideoFileClip(f'./{self._folder_temp}/{cid}.mp4')
-                audio = AudioFileClip(f'./{self._folder_temp}/{cid}.mp3')
-                video_merge = video.set_audio(audio)
-                video_merge.write_videofile(f'./{folder_name}/{video_title}.mp4')
-            self._delete_file(cid)
+            if self._merge:
+                try:
+                    text.set('ffmpeg合并中，请勿关闭')
+                    out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
+                    fileno = out_temp.fileno()
+                    cmd = fr'ffmpeg\bin\ffmpeg.exe -y -i ./{self._folder_temp}/{cid}.mp4 -i ./{self._folder_temp}/{cid}.mp3' \
+                          f' -c:v copy -c:a aac -strict experimental ./{folder_name}/{video_title}.mp4 -nostdin'
+                    proc = subprocess.Popen(cmd, stdout=fileno, stderr=fileno, stdin=fileno, shell=True)
+                    proc.wait()
+                    out_temp.seek(0)
+                    for i in out_temp.readlines():
+                        print(i.decode('utf-8').replace('\n', ''))
+                except:
+                    text.set('moviepy合并中，此合并方式比较耗时，请耐心等待')
+                    video = VideoFileClip(f'./{self._folder_temp}/{cid}.mp4')
+                    audio = AudioFileClip(f'./{self._folder_temp}/{cid}.mp3')
+                    video_merge = video.set_audio(audio)
+                    video_merge.write_videofile(f'./{folder_name}/{video_title}.mp4')
+                self._delete_file(cid)
+            else:
+                pass
         else:
             with open(f"./{folder_name}/{video_title}.mp4", 'wb') as vf:
                 content_size = int(video_response.headers['content-length'])
