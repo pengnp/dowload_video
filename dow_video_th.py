@@ -44,14 +44,14 @@ class DEMO:
         self._accumulate = 0  # 每次鼠标滚动时需要移动的数值
         self._vsb_location = 0  # 滚动条位置
         self._pn = 0
-        self._merge = True
+        self._merge = 1
 
     def _ui(self):
         """界面UI"""
         self._window.resizable(False, False)
         self._window.title('小工具')
         width = 400
-        height = 400
+        height = 415
         scree_width = (self._window.winfo_screenwidth() - width) // 2
         scree_height = (self._window.winfo_screenheight() - height) // 2
         self._window.geometry(f'{width}x{height}+{scree_width}+{scree_height}')
@@ -73,9 +73,12 @@ class DEMO:
         self._window.config(menu=menubar)
 
         def merge_videos(value):
+            """
+            配置是否合成
+            :param value: 1 or 0
+            """
             self._merge = value
             choice.set(value)
-            print(self._merge)
 
         operation_box = Frame(self._window)
         operation_box.pack(side=TOP)
@@ -174,7 +177,7 @@ class DEMO:
             self._header['cookie'] = content
             self._save_cookie(content)
             if data:
-                self._thread(function=self._download_video, args=(data,))
+                self._thread(function=self._download_video, args=data)
         else:
             pass
 
@@ -215,7 +218,7 @@ class DEMO:
                 if self._excpe_dow:  # 如果用户输入了cookie，且有效，则excpe_dow变为True
                     break
                 time.sleep(3)
-            self._thread(function=self._download_video, args=(data,))
+            self._thread(function=self._download_video, args=data)
 
     def _clear(self):
         """清除视频信息及按钮信息"""
@@ -328,7 +331,7 @@ class DEMO:
         os.remove(f'./{self._folder_temp}/{cid}.mp4')
 
     def _format_title(self, title):
-        return title.replace(' ', '').replace('/', '-').replace('.', '_').replace('|', '').replace(':', '-')
+        return title.replace(' ', '').replace('/', '-').replace('.', '_').replace('|', '').replace(':', '-').replace('?', '？').replace('&', '和')
 
     def _get_video_info(self):
         """获取视频信息"""
@@ -391,7 +394,7 @@ class DEMO:
                 if self._merge:
                     self._already_list[self._folder_name].append(title)
                 self._wait_dow_list.append(title)
-                threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title],)))
+                threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title], self._merge)))
         for th in threading_list:
             th.daemon = True
             th.start()
@@ -417,7 +420,7 @@ class DEMO:
         except:
             self._tips(message='检测到本地不存在cookie，请输入cookie以便使用')
 
-    def _download_video(self, data):
+    def _download_video(self, data, merge):
         """
         获取需要下载的视频video url、audio url。如果获取时报错，则弹窗提示cookie过期
         :param data: 视频数据
@@ -478,17 +481,17 @@ class DEMO:
             text = StringVar()
             label = Label(self._window, textvariable=text, font=('微软雅黑', 8))
             label.pack(side=TOP, anchor=NW, pady=3)
-            self._progress(video_url, audio_url, video_title, data[0], text, folder_name)
+            self._progress(video_url, audio_url, video_title, data[0], text, folder_name, merge)
             label.destroy()
             self._wait_dow_list.remove(video_title)
             self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
         except:
             message = traceback.format_exc().replace('\n', '\n') + '\n请尝试输入新的大会员cookie，如不能解决请联系作者'
             self._excpe_dow = False
-            self._tips(data, message)
+            self._tips((data, merge), message)
         self._semaphore.release()
 
-    def _progress(self, video_url, audio_url, video_title, cid, text, folder_name):
+    def _progress(self, video_url, audio_url, video_title, cid, text, folder_name, merge):
         """
         下载视频，并展示下载进度条
         :param video_url: 视频地址
@@ -519,7 +522,7 @@ class DEMO:
                         pass
                     text.set(
                         '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
-            if self._merge:
+            if merge:
                 try:
                     text.set('ffmpeg合并中，请勿关闭')
                     out_temp = tempfile.SpooledTemporaryFile(max_size=10 * 1000)  # 临时文件包
@@ -532,6 +535,8 @@ class DEMO:
                     for i in out_temp.readlines():
                         print(i.decode('utf-8').replace('\n', ''))
                 except:
+                    message = traceback.format_exc().replace('\n', '\n')
+                    print(message)
                     text.set('moviepy合并中，此合并方式比较耗时，请耐心等待')
                     video = VideoFileClip(f'./{self._folder_temp}/{cid}.mp4')
                     audio = AudioFileClip(f'./{self._folder_temp}/{cid}.mp3')
