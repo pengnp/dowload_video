@@ -331,7 +331,10 @@ class DEMO:
         os.remove(f'./{self._folder_temp}/{cid}.mp4')
 
     def _format_title(self, title):
-        return title.replace(' ', '').replace('/', '-').replace('.', '_').replace('|', '').replace(':', '-').replace('?', '？').replace('&', '和')
+        rep_format = {' ': '', '/': '-', '.': '_', '|': '', ':': '-', '?': '？', '&': '和', 'or': '或'}
+        for k, v in rep_format.items():
+            title = title.replace(k, v)
+        return title
 
     def _get_video_info(self):
         """获取视频信息"""
@@ -535,8 +538,6 @@ class DEMO:
                     for i in out_temp.readlines():
                         print(i.decode('utf-8').replace('\n', ''))
                 except:
-                    message = traceback.format_exc().replace('\n', '\n')
-                    print(message)
                     text.set('moviepy合并中，此合并方式比较耗时，请耐心等待')
                     video = VideoFileClip(f'./{self._folder_temp}/{cid}.mp4')
                     audio = AudioFileClip(f'./{self._folder_temp}/{cid}.mp3')
