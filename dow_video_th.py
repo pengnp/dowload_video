@@ -1,3 +1,4 @@
+import datetime
 import string
 import time
 from itertools import zip_longest
@@ -44,7 +45,7 @@ class DEMO:
         self._accumulate = 0  # 每次鼠标滚动时需要移动的数值
         self._vsb_location = 0  # 滚动条位置
         self._pn = 0
-        self._merge = 1
+        self._merge = 1  # 视频和音频是否合并
 
     def _ui(self):
         """界面UI"""
@@ -341,23 +342,23 @@ class DEMO:
         try:
             if self._video_type in ['FAN', 'BV']:
                 response = requests.get(self._address_input, headers=self._header).text
-                video_info = json.loads(re.findall(r"<script>window\.__INITIAL_STATE__=(.*?)</script>", response)[0][0:-122])
-                if self._video_type == 'FAN':
-                    self._folder_name = self._format_title(video_info['mediaInfo']['title'])
-                    for info in video_info['epList']:
-                        if info['longTitle'] != '':
-                            video_title = f"{info['titleFormat']}-{info['longTitle']}"
+                if self._video_type == 'FAN':  # 番剧
+                    video_info = json.loads(re.findall(r"<script id=\"__NEXT_DATA__\" type=\"application/json\">(.*?)</script>", response)[0])['props']['pageProps']['dehydratedState']['queries'][0]['state']['data']['mediaInfo']
+                    self._folder_name = self._format_title(video_info['title'])
+                    for info in video_info['episodes']:
+                        if info['long_title'] != '':
+                            video_title = f"{info['titleFormat']}-{info['long_title']}"
                         else:
                             video_title = f"{info['titleFormat']}"
                         video_title = self._format_title(video_title)
                         self._video_data[video_title] = [info['cid'], info['bvid'], video_title, info['aid'], info['id'],
                                                          self._folder_name, self._video_type]
-                elif self._video_type == 'BV':
-                    info = video_info['videoData']
-                    self._folder_name = self._format_title(info['title'])
-                    self._video_data[self._folder_name] = [info['cid'], info['bvid'], self._folder_name, self._video_type]
-            else:
-                response = requests.get(url='https://api.bilibili.com/x/space/arc/search', headers=self._header,
+                elif self._video_type == 'BV':  # UP主
+                    video_info = json.loads(re.findall(r"<script>window\.__playinfo__=(.*?)</script>", response)[0])['data']['dash']
+                    self._folder_name = self._format_title(datetime.datetime.now().strftime('%Y%m%d%H%M%S'))
+                    self._video_data[self._folder_name] = [video_info['video'][0]['baseUrl'], video_info['audio'][0]['baseUrl'], self._folder_name, self._video_type]
+            else:  # UP主所有数据
+                response = requests.get(url='https://api.bilibili.com/x/space/wbi/arc/search', headers=self._header,
                                         params={
                                             'mid': self._address_input,
                                             'pn': self._pn + 1,
@@ -434,17 +435,21 @@ class DEMO:
         video_title = data[2]
         try:
             if data[-1] == 'FAN':
+                cid = data[0]
                 folder_name = data[-2]
                 param = {
+                    'support_multi_audio': True,
                     'avid': data[3],
                     'bvid': data[1],
                     'cid': data[0],
-                    'qn': 0,
+                    'qn': 120,
                     'fnver': 0,
                     'fnval': 4048,
                     'fourk': 1,
+                    'from_client': 'BROWSER',
                     'ep_id': data[4],
-                    'session': session
+                    'session': session,
+                    'drm_tech_type': 2
                 }
                 url = 'https://api.bilibili.com/pgc/player/web/playurl'  # 番剧
                 response = requests.get(url, headers=self._header, params=param).json()
@@ -459,32 +464,36 @@ class DEMO:
                         video_url = response['result']['durl'][0]['backup_url'][0]
                         audio_url = None
             else:
-                url = 'https://api.bilibili.com/x/player/playurl'  # 普通
-                param = {
-                    'cid': data[0],
-                    'qn': 116,
-                    'otype': 'json',
-                    'fourk': 1,
-                    'bvid': data[1],
-                    'fnver': 0,
-                    'fnval': 976,
-                    'session': session
-                }
                 if data[-1] == 'BV':
                     folder_name = video_title
+                    video_url = data[0]
+                    audio_url = data[1]
+                    cid = video_title
                 else:
+                    cid = data[0]
+                    url = 'https://api.bilibili.com/x/player/playurl'  # 普通
+                    param = {
+                        'cid': data[0],
+                        'qn': 116,
+                        'otype': 'json',
+                        'fourk': 1,
+                        'bvid': data[1],
+                        'fnver': 0,
+                        'fnval': 976,
+                        'session': session
+                    }
                     folder_name = data[-2]
-                response = requests.get(url, headers=self._header, params=param).json()
-                try:
-                    video_url = response['data']['dash']['video'][0]['backupUrl'][0]
-                    audio_url = response['data']['dash']['audio'][0]['backupUrl'][0]
-                except:
-                    video_url = response['data']['dash']['video'][0]['baseUrl']
-                    audio_url = response['data']['dash']['audio'][0]['baseUrl']
+                    response = requests.get(url, headers=self._header, params=param).json()
+                    try:
+                        video_url = response['data']['dash']['video'][0]['backupUrl'][0]
+                        audio_url = response['data']['dash']['audio'][0]['backupUrl'][0]
+                    except:
+                        video_url = response['data']['dash']['video'][0]['baseUrl']
+                        audio_url = response['data']['dash']['audio'][0]['baseUrl']
             text = StringVar()
             label = Label(self._window, textvariable=text, font=('微软雅黑', 8))
             label.pack(side=TOP, anchor=NW, pady=3)
-            self._progress(video_url, audio_url, video_title, data[0], text, folder_name, merge)
+            self._progress(video_url, audio_url, video_title, cid, text, folder_name, merge)
             label.destroy()
             self._wait_dow_list.remove(video_title)
             self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
