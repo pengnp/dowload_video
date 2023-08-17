@@ -16,7 +16,7 @@ import traceback
 from moviepy.editor import *
 
 
-class DEMO:
+class DownVideo:
 
     def __init__(self):
         self._window = Tk()
@@ -572,5 +572,5 @@ class DEMO:
 
 
 if __name__ == '__main__':
-    DEMO().start()
+    DownVideo().start()
 
