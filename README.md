@@ -48,4 +48,10 @@
 
 ![](file:///C:\Users\Rice\AppData\Local\Temp\ksohtml47196\wps11.jpg) ![image.png](https://static.wetab.link/user-note-img/zh/64423e4d417313df3387b1c3/user-note-img1h810lspejxjlr6vigsq7627cbe.png)
 
-默认是，可更改为否，改为否后，点击视频下载将不会对视频进行合成，会分为单独的“视频文件”和“音频文件”存放在temp文件夹中
+默认勾选状态，点击视频下载将不会对视频进行合成，会分为单独的“视频文件”和“音频文件”存放在temp文件夹中。可取消勾选
+
+## **操作五：设置视频是否下载封面**
+
+![image.png](https://static.wetab.link/user-note-img/zh/64423e4d417313df3387b1c3/user-note-img1hc6gffhibhyjenj89tzl59jjyv.png)
+
+默认不勾选状态，点击视频下载不进行封面保存。勾选后，下载视频时会把视频封面也一并下载，保存在视频文件夹中（仅现up视频）

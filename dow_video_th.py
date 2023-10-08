@@ -46,6 +46,7 @@ class DownVideo:
         self._vsb_location = 0  # 滚动条位置
         self._pn = 0
         self._merge = 1  # 视频和音频是否合并
+        self._dow_cover = 0  # 视频是否下载封面
 
     def _ui(self):
         """界面UI"""
@@ -67,19 +68,28 @@ class DownVideo:
         menubar = Menu(self._window, background='grey')
         filemenu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label='设置', menu=filemenu)
-        choice = IntVar()
-        choice.set(1)
-        filemenu.add_radiobutton(label='视频合成（是）', variable=choice, value=1, command=lambda: merge_videos(1))
-        filemenu.add_radiobutton(label='视频合成（否）', variable=choice, value=0, command=lambda: merge_videos(0))
+        merge_choice = IntVar()
+        merge_choice.set(self._merge)
+        filemenu.add_radiobutton(label='视频合成', variable=merge_choice, value=1, command=lambda: settings('merge'))
+
+        cover_choice = IntVar()
+        cover_choice.set(self._dow_cover)
+        filemenu.add_radiobutton(label='下载封面(仅UP视频)', variable=cover_choice, value=1, command=lambda: settings('cover'))
         self._window.config(menu=menubar)
 
-        def merge_videos(value):
+        def settings(setting_type):
             """
-            配置是否合成
-            :param value: 1 or 0
+            是否合成和是否下载封面
+            :param setting_type: cover(封面) or merge(音频视频合并)
             """
-            self._merge = value
-            choice.set(value)
+            if setting_type == 'merge':
+                self._merge = 0 if self._merge == 1 else 1
+                merge_choice.set(self._merge)
+                print(self._merge)
+            else:
+                self._dow_cover = 0 if self._dow_cover == 1 else 1
+                cover_choice.set(self._dow_cover)
+                print(self._dow_cover)
 
         operation_box = Frame(self._window)
         operation_box.pack(side=TOP)
@@ -186,6 +196,7 @@ class DownVideo:
         """
         提示窗口，且阻塞需要大会员才能下载的视频
         :param data: 视频数据
+        :param message: 弹窗提示文本
         """
         if self._tips_flag:
             self._tips_flag = False
@@ -266,7 +277,11 @@ class DownVideo:
         self._disabled_or_select(False)
 
     def _get_dow_list(self, title):
-        """勾选的视频存入列表，取消勾选的视频移除列表"""
+        """
+        勾选的视频存入列表，取消勾选的视频移除列表
+        :param title: 视频标题
+
+        """
         if title in self._dow_list:
             print(f'remove {title}')
             self._dow_list.remove(title)
@@ -332,6 +347,9 @@ class DownVideo:
         os.remove(f'./{self._folder_temp}/{cid}.mp4')
 
     def _format_title(self, title):
+        """
+        视频标题格式化
+        """
         rep_format = {' ': '', '/': '-', '.': '_', '|': '', ':': '-', '?': '？', '&': '和', 'or': '或'}
         for k, v in rep_format.items():
             title = title.replace(k, v)
@@ -356,7 +374,8 @@ class DownVideo:
                 elif self._video_type == 'BV':  # UP主
                     video_info = json.loads(re.findall(r"<script>window\.__playinfo__=(.*?)</script>", response)[0])['data']['dash']
                     self._folder_name = self._format_title(datetime.datetime.now().strftime('%Y%m%d%H%M%S'))
-                    self._video_data[self._folder_name] = [video_info['video'][0]['baseUrl'], video_info['audio'][0]['baseUrl'], self._folder_name, self._video_type]
+                    bvid = self._address_input.split('/')[-1]
+                    self._video_data[self._folder_name] = [video_info['video'][0]['baseUrl'], video_info['audio'][0]['baseUrl'], self._folder_name, bvid, self._video_type]
             else:  # UP主所有数据
                 response = requests.get(url='https://api.bilibili.com/x/space/wbi/arc/search', headers=self._header,
                                         params={
@@ -392,13 +411,13 @@ class DownVideo:
         if kwargs['function']:
             threading_list.append(threading.Thread(target=kwargs['function'], args=kwargs['args']))
         else:
-            if self._merge:
+            if self._merge:  # 如果合并则去创建对应文件夹
                 self._create_folder(False, True)
             for title in self._dow_list:
                 if self._merge:
                     self._already_list[self._folder_name].append(title)
                 self._wait_dow_list.append(title)
-                threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title], self._merge)))
+                threading_list.append(threading.Thread(target=self._download_video, args=(self._video_data[title], self._merge, self._dow_cover)))
         for th in threading_list:
             th.daemon = True
             th.start()
@@ -424,15 +443,18 @@ class DownVideo:
         except:
             self._tips(message='检测到本地不存在cookie，请输入cookie以便使用')
 
-    def _download_video(self, data, merge):
+    def _download_video(self, data, merge, cover):
         """
         获取需要下载的视频video url、audio url。如果获取时报错，则弹窗提示cookie过期
         :param data: 视频数据
+        :param merge: 此视频是否合并
+        :param cover: 此视频是否下载封面
         """
         self._semaphore.acquire()
         time.sleep(random.uniform(0.1, 1.0))
         session = ''.join(random.sample(string.ascii_letters + string.digits, 32))
         video_title = data[2]
+        bvid = None
         try:
             if data[-1] == 'FAN':
                 cid = data[0]
@@ -469,7 +491,9 @@ class DownVideo:
                     video_url = data[0]
                     audio_url = data[1]
                     cid = video_title
+                    bvid = data[3]
                 else:
+                    bvid = data[1]
                     cid = data[0]
                     url = 'https://api.bilibili.com/x/player/playurl'  # 普通
                     param = {
@@ -493,7 +517,7 @@ class DownVideo:
             text = StringVar()
             label = Label(self._window, textvariable=text, font=('微软雅黑', 8))
             label.pack(side=TOP, anchor=NW, pady=3)
-            self._progress(video_url, audio_url, video_title, cid, text, folder_name, merge)
+            self._progress(video_url, audio_url, video_title, cid, text, folder_name, merge, cover, bvid)
             label.destroy()
             self._wait_dow_list.remove(video_title)
             self._dow_but_text.set(f'点我下载({len(self._wait_dow_list)}个正在下载)')
@@ -503,7 +527,7 @@ class DownVideo:
             self._tips((data, merge), message)
         self._semaphore.release()
 
-    def _progress(self, video_url, audio_url, video_title, cid, text, folder_name, merge):
+    def _progress(self, video_url, audio_url, video_title, cid, text, folder_name, merge, cover, bvid):
         """
         下载视频，并展示下载进度条
         :param video_url: 视频地址
@@ -512,10 +536,22 @@ class DownVideo:
         :param cid: 视频的cid
         :param text: Label组件的StringVar()
         :param folder_name: 保存视频的文件夹名称
+        :param merge: 是否合并
+        :param cover: 是否下载封面
+        :param bvid: 视频bvid
         """
         size = 0  # 初始化已下载大小
         chunk_size = 30720  # 每次下载的数据大小
         video_response = requests.get(video_url, headers=self._header, stream=True)
+        if cover and self._video_type != 'FAN':
+            text.set(f'[文件<{video_title[:24]}...>封面下载中]')
+            img_save_path = f'./{folder_name}/{video_title}.jpg' if self._merge else f'./{self._folder_temp}/{bvid}.jpg'
+            url = f"https://api.bilibili.com/x/web-interface/view?bvid={bvid}"
+            img_url = requests.get(url, headers=self._header).json()["data"]["pic"]
+            content = requests.get(img_url, headers=self._header).content
+            with open(img_save_path, 'wb') as f:
+                f.write(content)
+            text.set(f'[文件<{video_title[:24]}...>封面下载完成]')
         if audio_url:
             audio_response = requests.get(audio_url, headers=self._header, stream=True)
             with open(f"./{self._folder_temp}/{cid}.mp4", 'wb') as vf, open(f"./{self._folder_temp}/{cid}.mp3", 'wb') as af:
@@ -533,7 +569,7 @@ class DownVideo:
                     else:
                         pass
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
+                        '[文件<{}...>视频下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
             if merge:
                 try:
                     text.set('ffmpeg合并中，请勿关闭')
@@ -562,7 +598,7 @@ class DownVideo:
                     vf.write(v)
                     size += len(v)
                     text.set(
-                        '[文件<{}...>下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
+                        '[文件<{}...>视频下载进度]:{size:.2f}%'.format(video_title[:24], size=float(size / content_size * 100)))
 
     def start(self):
         """梦开始的地方"""
